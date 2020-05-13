@@ -4,23 +4,16 @@ The template of the script for the machine learning process in game pingpong
 
 # Import the necessary modules and classes
 from mlgame.communication import ml as comm
+import pickle
+import numpy as np
+import os 
+
 
 def ml_loop(side: str):
-    """
-    The main loop for the machine learning process
-    The `side` parameter can be used for switch the code for either of both sides,
-    so you can write the code for both sides in the same script. Such as:
-    ```python
-    if side == "1P":
-        ml_loop_for_1P()
-    else:
-        ml_loop_for_2P()
-    ```
-    @param side The side which this script is executed for. Either "1P" or "2P".
-    """
 
-    # === Here is the execution order of the loop === #
-    # 1. Put the initialization code here
+    with open(os.path.join(os.path.dirname(__file__),'save','model.pickle'), 'rb') as f:
+        model = pickle.load(f)
+
     ball_served = False
     def move_to(player, pred) : #move platform to predicted position to catch ball 
         if player == '1P':
@@ -28,14 +21,13 @@ def ml_loop(side: str):
             elif scene_info["platform_1P"][0]+20 <= (pred-10) : return 1 # goes right
             else : return 2 # goes left
         else :
-            if scene_info["platform_2P"][0]+20  > (pred-8)and scene_info["platform_2P"][0]+20 < (pred+8):
-                if scene_info["platform_2P"][1]+30-scene_info["ball_speed"][1] > scene_info["ball"][1] :
-                    if scene_info["ball_speed"][0] > 0:
-                        print ("cut left")
-                        return 1
-                    else :
-                        print ("cut right")
-                        return 2
+            if scene_info["platform_2P"][0]+20  > (pred-10)and scene_info["platform_2P"][0]+20 < (pred+10):
+                if scene_info["platform_2P"][1]+30-scene_info["ball_speed"][1] > scene_info["ball"][1] : #slice
+                    return 0
+                    #if scene_info["ball"][0] > scene_info["platform_2P"][0]+20 and scene_info["ball_speed"][0] > 0:
+                    #    return 1
+                    #elif scene_info["ball"][0] > scene_info["platform_2P"][0]+20 and scene_info["ball_speed"][0] < 0:
+                    #    return 1
                 else :
                     return 0 # NONE
             elif scene_info["platform_2P"][0]+20 <= (pred-10) : return 1 # goes right
@@ -61,26 +53,22 @@ def ml_loop(side: str):
             return move_to(player = '1P',pred = 100)
 
 
-
     def ml_loop_for_2P():  # as same as 1P
-        if scene_info["ball_speed"][1] > 0 : 
-            return move_to(player = '2P',pred = 100)
-        else : 
-            x = ( scene_info["platform_2P"][1]+30-scene_info["ball"][1] ) // scene_info["ball_speed"][1] 
-            pred = scene_info["ball"][0]+(scene_info["ball_speed"][0]*x) 
-            bound = pred // 200 
-            if (bound > 0):
-                if (bound%2 == 0):
-                    pred = pred - bound*200 
-                else :
-                    pred = 200 - (pred - 200*bound)
-            elif (bound < 0) :
-                if bound%2 ==1:
-                    pred = abs(pred - (bound+1) *200)
-                else :
-                    pred = pred + (abs(bound)*200)
-            return move_to(player = '2P',pred = pred)
-
+        # print ("blocker : %s, ball : %s"%(scene_info["blocker"],scene_info["ball"]))
+        if scene_info["ball_speed"][1] > 0 :
+            if scene_info["ball_speed"][0] > 0:
+                direction = 0
+            else :
+                direction = 1
+        else :
+            if scene_info["ball_speed"][0] > 0:
+                direction = 2
+            else:
+                direction = 3
+        X = [scene_info["ball"][0], scene_info["ball"][1], direction, scene_info["blocker"][0],scene_info["ball_speed"][0],scene_info["ball_speed"][1]]
+        X = np.array(X).reshape((1,-1))
+        pred = model.predict(X)
+        return move_to(player = '2P',pred = pred)
     # 2. Inform the game process that ml process is ready
     comm.ml_ready()
 
@@ -105,7 +93,7 @@ def ml_loop(side: str):
 
         # 3.4 Send the instruction for this frame to the game process
         if not ball_served:
-            comm.send_to_game({"frame": scene_info["frame"], "command": "SERVE_TO_LEFT"})
+            comm.send_to_game({"frame": scene_info["frame"], "command": "SERVE_TO_RIGHT"})
             ball_served = True
         else:
             if side == "1P":
