@@ -20,9 +20,17 @@ class MLPlay:
 
         if not self.ball_served:
             self.ball_served = True
-            command = "SERVE_TO_LEFT"
-        else:
+            
             command = "MOVE_LEFT"
+            
+            
+        else:
+            ball = scene_info["ball"]
+            platform = scene_info["platform"]
+            if ball[0] > platform[0]:
+                command = "MOVE_RIGHT"
+            else:
+                command = "MOVE_LEFT"
 
         return command
 
